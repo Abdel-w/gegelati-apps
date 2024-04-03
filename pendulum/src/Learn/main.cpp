@@ -51,7 +51,7 @@ int main() {
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
 	// Instantiate and init the learning agent
-	Learn::ParallelLearningAgent la(pendulumLE, set, params);
+	Learn::LearningAgent la(pendulumLE, set, params);
 	la.init();
 
 	// Start a thread for controlling the loop
