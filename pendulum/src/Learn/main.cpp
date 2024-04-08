@@ -14,7 +14,7 @@
 #include "tools.h"
 int main() {
     //Create a folder for storing the results of the training experimentations
-    char* saveFolderPath = createFolderWithCurrentTime();
+    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/2Agents/");
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -50,9 +50,12 @@ int main() {
 
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
+    // Instantiate and initialize the FLAgent (LA)
+    Learn::FLAgentManager<Learn::LearningAgent> laM(2,pendulumLE, set, params);
+    laM.connectAgentsPseudoRandomly();
 	// Instantiate and init the learning agent
-	Learn::LearningAgent la(pendulumLE, set, params);
-	la.init();
+//	Learn::ParallelLearningAgent la(pendulumLE, set, params);
+//	la.init();
 
 	// Start a thread for controlling the loop
 #ifndef NO_CONSOLE_CONTROL
@@ -73,29 +76,49 @@ int main() {
 #endif
 
 	// Basic logger
-	Log::LABasicLogger basicLogger(la);
+	//Log::LABasicLogger basicLogger(la);
+    Log::LABasicLogger basicLogger(*laM.agents[0]);
+    //Log::LABasicLogger basicLoggera(*laM.agents[1]);
+
 
     //CSV logger
-    char* CSVfilename = concatenateStrings(saveFolderPath, "/training_data.csv");
-    std::ofstream CSVof;
-    CSVof.open (CSVfilename, std::ios::out);
-    if (!CSVof.is_open())
-    {
-        std::cout << "Cannot open file " << CSVfilename << std::endl;
-        exit(0);
-    }
-    Log::LABasicLogger csvLogger(la, CSVof, 0, ",");
 
+    std::vector<std::ofstream> CSVof;
+    char* CSVfilename[laM.agents.size()] ;
+    char buff[BUFFER_SIZE];
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        //init agents
+        laM.agents[i]->init();
+        sprintf(buff, "/training_data_agent%01d.csv",i);
+        CSVfilename[i] = concatenateStrings(saveFolderPath, buff);
+
+        CSVof.push_back(std::ofstream());
+        CSVof[i].open(CSVfilename[i], std::ios::out);
+        if (!CSVof[i].is_open())
+        {
+            std::cout << "Cannot open file " << CSVfilename[i] << std::endl;
+            exit(0);
+        }
+    }
+
+    //Log::LABasicLogger csvLogger(la, CSVof, 0, ",");
+    std::vector< Log::LABasicLogger> csvLogger;
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        csvLogger.push_back(Log::LABasicLogger(*laM.agents[i], CSVof[i], 0, ","));
+    }
 
     // Create an exporter for all graphs
-    char buff[BUFFER_SIZE];
-    sprintf(buff, "%s/Graphs/out_0000.dot", saveFolderPath);
-    File::TPGGraphDotExporter dotExporter(buff, *la.getTPGGraph());
-
+    std::vector<File::TPGGraphDotExporter*> dotExporters;
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        sprintf(buff, "%s/Graphs/out%d_0000.dot", saveFolderPath,i);
+        dotExporters.push_back(new File::TPGGraphDotExporter(buff, *laM.agents[i]->getTPGGraph()));
+    }
 	// Logging best policy stat.
 	std::ofstream stats;
 	stats.open("bestPolicyStats.md");
-	Log::LAPolicyStatsLogger policyStatsLogger(la, stats);
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        Log::LAPolicyStatsLogger policyStatsLogger(*laM.agents[i], stats);
+    }
 
 	// Export parameters before starting training.
 	// These may differ from imported parameters because of LE or machine specific
@@ -103,17 +126,42 @@ int main() {
 	File::ParametersParser::writeParametersToJson("exported_params.json", params);
 
 	// Train for params.nbGenerations generations
+    uint64_t aggregationNumber = 0;
     for (uint64_t i = 0; i < params.nbGenerations && !exitProgram; i++) {
-        sprintf(buff, "%s/Graphs/out_%04ld.dot", saveFolderPath, i);
-		dotExporter.setNewFilePath(buff);
-		dotExporter.print();
 
-		la.trainOneGeneration(i);
+        for (int j = 0; j < laM.agents.size(); ++j) {
+            sprintf(buff, "%s/Graphs/out%01d_%04ld.dot", saveFolderPath, j, i);
+            dotExporters.at(j)->setNewFilePath(buff);
+            dotExporters.at(j)->print();
+        }
+
+		//la.trainOneGeneration(i);
+        // Train one generation
+        if (i == laM.agents[0]->params.nbGenerationPerAggregation * (aggregationNumber+1))
+        {
+            laM.exchangeBestBranchs();
+            //for each agent copy all received branchs in the TPGGraph
+            std::for_each(laM.agents.begin(),laM.agents.end(),
+                          [](Learn::FLAgent<Learn::LearningAgent> *agent){
+
+                              // copy all branchs
+                              for (auto branch : agent->getBestBranch()){
+                                  Mutator::BranchMutator::copyBranch(branch, *(agent->getTPGGraph()));
+                              }
+                              //Empty Epmty the bestBranchs vector to get ready to receive new ones
+                              agent->emptyBranchs();
+                          });
+            aggregationNumber++;
+        }
+        for (auto agent : laM.agents)
+        {
+            agent->trainOneGeneration(i);
+        }
 
 #ifndef NO_CONSOLE_CONTROL
 		generation = i;
 		if (toggleDisplay && !exitProgram) {
-			bestRoot = la.getBestRoot().first;
+			bestRoot = laM.agents[0]->getBestRoot().first;
 			doDisplay = true;
 			while (doDisplay && !exitProgram);
 		}
@@ -121,32 +169,60 @@ int main() {
 	}
 
 	// Keep best policy
-	la.keepBestPolicy();
+    // la.keepBestPolicy();
 
-	// Clear introns instructions
-	la.getTPGGraph()->clearProgramIntrons();
+    // Clear introns instructions
+    //la.getTPGGraph()->clearProgramIntrons();
+    TPG::PolicyStats ps;
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        // Keep best policy
+        laM.agents[i]->keepBestPolicy();
+        // Clear introns instructions
+        laM.agents[i]->getTPGGraph()->clearProgramIntrons();
+        // Export the graph
+        sprintf(buff, "%s/Graphs/out%01d_best.dot", saveFolderPath, i);
+        dotExporters.at(i)->setNewFilePath(buff);
+        dotExporters.at(i)->print();
+
+
+        // Export stats file to logs directory
+        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
+        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
+        std::ofstream bestStats;
+        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath,i);
+        bestStats.open("buff");
+        bestStats << ps;
+        bestStats.close();
+        stats.close();
+
+    }
+
+
 
 	// Export the graph
-    sprintf(buff, "%s/Graphs/out_best.dot", saveFolderPath);
-    dotExporter.setNewFilePath(buff);
-	dotExporter.print();
+//    sprintf(buff, "%s/Graphs/out_best.dot", saveFolderPath);
+//    dotExporter.setNewFilePath(buff);
+//	dotExporter.print();
 
     // Export stats file to logs directory
-	TPG::PolicyStats ps;
-	ps.setEnvironment(la.getTPGGraph()->getEnvironment());
-	ps.analyzePolicy(la.getBestRoot().first);
-	std::ofstream bestStats;
-    sprintf(buff, "%s/out_best_stats.md", saveFolderPath);
-	bestStats.open("buff");
-	bestStats << ps;
-	bestStats.close();
-	stats.close();
+//	TPG::PolicyStats ps;
+//	ps.setEnvironment(laM.agents[0].getTPGGraph()->getEnvironment());
+//	ps.analyzePolicy(la.getBestRoot().first);
+//	std::ofstream bestStats;
+//    sprintf(buff, "%s/out_best_stats.md", saveFolderPath);
+//	bestStats.open("buff");
+//	bestStats << ps;
+//	bestStats.close();
+//	stats.close();
 
 	// cleanup
 	for (unsigned int i = 0; i < set.getNbInstructions(); i++) {
 		delete (&set.getInstruction(i));
 	}
 
+    for (int i = 0; i < dotExporters.size(); ++i) {
+        delete dotExporters[i];
+    }
     delete[] saveFolderPath;
 #ifndef NO_CONSOLE_CONTROL
 	// Exit the thread
