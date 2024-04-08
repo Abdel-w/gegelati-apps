@@ -14,7 +14,7 @@
 #include "tools.h"
 int main() {
     //Create a folder for storing the results of the training experimentations
-    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/2Agents/");
+    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/3Agents/");
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -51,8 +51,11 @@ int main() {
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
     // Instantiate and initialize the FLAgent (LA)
-    Learn::FLAgentManager<Learn::ParallelLearningAgent> laM(2,pendulumLE, set, params);
-    laM.connectAgentsPseudoRandomly();
+    Learn::FLAgentManager<Learn::ParallelLearningAgent> laM(3,pendulumLE, set, params);
+    //laM.connectAgentsPseudoRandomly();
+    laM.connectAgents(laM.agents[0],laM.agents[1]);
+    laM.connectAgents(laM.agents[2],laM.agents[0]);
+    laM.connectAgents(laM.agents[1],laM.agents[2]);
 	// Instantiate and init the learning agent
 //	Learn::ParallelLearningAgent la(pendulumLE, set, params);
 //	la.init();
