@@ -51,7 +51,7 @@ int main() {
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
     // Instantiate and initialize the FLAgent (LA)
-    Learn::FLAgentManager<Learn::LearningAgent> laM(2,pendulumLE, set, params);
+    Learn::FLAgentManager<Learn::ParallelLearningAgent> laM(2,pendulumLE, set, params);
     laM.connectAgentsPseudoRandomly();
 	// Instantiate and init the learning agent
 //	Learn::ParallelLearningAgent la(pendulumLE, set, params);
@@ -86,14 +86,13 @@ int main() {
     std::vector<std::ofstream> CSVof;
     char* CSVfilename[laM.agents.size()] ;
     char buff[BUFFER_SIZE];
-    for (int i = 0; i < laM.agents.size(); ++i) {
+    for (int i = 0; i < laM.nbAgents; ++i) {
         //init agents
         laM.agents[i]->init();
         sprintf(buff, "/training_data_agent%01d.csv",i);
         CSVfilename[i] = concatenateStrings(saveFolderPath, buff);
 
-        CSVof.push_back(std::ofstream());
-        CSVof[i].open(CSVfilename[i], std::ios::out);
+        CSVof.emplace_back(CSVfilename[i], std::ios::out);
         if (!CSVof[i].is_open())
         {
             std::cout << "Cannot open file " << CSVfilename[i] << std::endl;
@@ -101,24 +100,30 @@ int main() {
         }
     }
 
-    //Log::LABasicLogger csvLogger(la, CSVof, 0, ",");
-    std::vector< Log::LABasicLogger> csvLogger;
+    std::vector<Log::LABasicLogger> csvLogger;
+    csvLogger.reserve(laM.agents.size()); //Danger!!!!!!!!!!!!!
     for (int i = 0; i < laM.agents.size(); ++i) {
-        csvLogger.push_back(Log::LABasicLogger(*laM.agents[i], CSVof[i], 0, ","));
+        csvLogger.emplace_back(*laM.agents[i], CSVof[i], 0, ",");
     }
-
     // Create an exporter for all graphs
     std::vector<File::TPGGraphDotExporter*> dotExporters;
-    for (int i = 0; i < laM.agents.size(); ++i) {
+    for (int i = 0; i < laM.nbAgents; ++i) {
         sprintf(buff, "%s/Graphs/out%d_0000.dot", saveFolderPath,i);
         dotExporters.push_back(new File::TPGGraphDotExporter(buff, *laM.agents[i]->getTPGGraph()));
     }
 	// Logging best policy stat.
-	std::ofstream stats;
-	stats.open("bestPolicyStats.md");
-    for (int i = 0; i < laM.agents.size(); ++i) {
-        Log::LAPolicyStatsLogger policyStatsLogger(*laM.agents[i], stats);
+	std::vector<std::ofstream> stats;
+    stats.reserve(laM.nbAgents);//Danger!!!!!!!!!!!!!
+    std::vector<Log::LAPolicyStatsLogger> policyStatsLogger;
+    policyStatsLogger.reserve(laM.nbAgents);//Danger!!!!!!!!!!!!!
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        sprintf(buff,"bestPolicyStats_%01d.md",i);
+        stats.emplace_back(buff,std::ios::out);
+        stats[i].open(buff,std::ios::out);
+        policyStatsLogger.emplace_back(*laM.agents[i], stats[i]);
+
     }
+
 
 	// Export parameters before starting training.
 	// These may differ from imported parameters because of LE or machine specific
@@ -129,7 +134,7 @@ int main() {
     uint64_t aggregationNumber = 0;
     for (uint64_t i = 0; i < params.nbGenerations && !exitProgram; i++) {
 
-        for (int j = 0; j < laM.agents.size(); ++j) {
+        for (int j = 0; j < laM.nbAgents; ++j) {
             sprintf(buff, "%s/Graphs/out%01d_%04ld.dot", saveFolderPath, j, i);
             dotExporters.at(j)->setNewFilePath(buff);
             dotExporters.at(j)->print();
@@ -142,7 +147,7 @@ int main() {
             laM.exchangeBestBranchs();
             //for each agent copy all received branchs in the TPGGraph
             std::for_each(laM.agents.begin(),laM.agents.end(),
-                          [](Learn::FLAgent<Learn::LearningAgent> *agent){
+                          [](auto *agent){
 
                               // copy all branchs
                               for (auto branch : agent->getBestBranch()){
@@ -174,7 +179,7 @@ int main() {
     // Clear introns instructions
     //la.getTPGGraph()->clearProgramIntrons();
     TPG::PolicyStats ps;
-    for (int i = 0; i < laM.agents.size(); ++i) {
+    for (int i = 0; i < laM.nbAgents; ++i) {
         // Keep best policy
         laM.agents[i]->keepBestPolicy();
         // Clear introns instructions
@@ -193,7 +198,7 @@ int main() {
         bestStats.open("buff");
         bestStats << ps;
         bestStats.close();
-        stats.close();
+        stats[i].close();
 
     }
 
