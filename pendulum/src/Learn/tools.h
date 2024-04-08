@@ -15,7 +15,7 @@ char* concatenateStrings(const char* str1, const char* str2);
 void getCurrentTimeAsString(char* bufferTime);
 
 // Create a specific folder for this training
-char* createFolderWithCurrentTime();
+char* createFolderWithCurrentTime(char* path);
 
 // copy the source file into the dest file
 void copyFile(char *filename_src, char *filename_dest);

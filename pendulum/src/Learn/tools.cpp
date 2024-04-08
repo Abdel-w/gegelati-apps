@@ -20,16 +20,16 @@ void getCurrentTimeAsString(char* bufferTime) {
     // get currrent time
 	auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 	// convert time_t struct into char* 
-    std::strftime(bufferTime, BUFFER_SIZE, "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
+    std::strftime(bufferTime, BUFFER_SIZE, "%Y-%m-%d_%H:%M.%S", std::localtime(&now));
 }
 
-char* createFolderWithCurrentTime() {
+char* createFolderWithCurrentTime(char* path) {
     // the folder is named after the exact time it was created
 	char bufferTime[BUFFER_SIZE];
 
 	getCurrentTimeAsString(bufferTime);
 
-    char* bufferPath = concatenateStrings(ROOT_DIR, "/logs/");
+    char* bufferPath = concatenateStrings(ROOT_DIR, path);
 	char* saveFolderPath = concatenateStrings(bufferPath, bufferTime);
 
     // Create the folder

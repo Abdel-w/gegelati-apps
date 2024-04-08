@@ -18,6 +18,10 @@
 	// fixed, and no further evaluation will be done.
 	// "maxNbEvaluationPerPolicy" : 1000, // Default value
 	"maxNbEvaluationPerPolicy" : 10,
+	/// the period of copying the incoming branchs
+	"nbGenerationPerAggregation" : 5,
+	/// The maximum number of connections an agent can have.
+	"maxNbOfConnections" : 1,
 	"mutation" : 
 	{
 		"prog" : 
