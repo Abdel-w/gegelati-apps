@@ -8,7 +8,7 @@
 #include <gegelati.h>
 
 #include "mnist.h"
-
+#include "tools.h"
 void getKey(std::atomic<bool>& exit, std::atomic<bool>& printStats) {
 	std::cout << std::endl;
 	std::cout << "Press `q` then [Enter] to exit." << std::endl;
@@ -40,7 +40,19 @@ void getKey(std::atomic<bool>& exit, std::atomic<bool>& printStats) {
 }
 
 int main() {
-	std::cout << "Start MNIST application." << std::endl;
+    //Create a folder for storing the results of the training experimentations
+    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/5Agents/");
+
+    // Export the src/instructions.cpp file and the params.json file to
+    // keep traceability when looking at the logs
+    char filename_src[BUFFER_SIZE];
+    char filename_dest[BUFFER_SIZE];
+
+    sprintf(filename_src, "%s/params.json", ROOT_DIR);
+    sprintf(filename_dest, "%s/params.json", saveFolderPath);
+    copyFile(filename_src, filename_dest);
+
+    std::cout << "Start MNIST application." << std::endl;
 
 	// Create the instruction set for programs
 	Instructions::Set set;
@@ -102,12 +114,20 @@ int main() {
 
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
-	// Instantiate and init the learning agent
-	Learn::ClassificationLearningAgent la(mnistLE, set, params);
-	la.init();
+//	// Instantiate and init the learning agent
+//	Learn::ClassificationLearningAgent la(mnistLE, set, params);
+//	la.init();
+    Learn::FLAgentManager<Learn::ClassificationLearningAgent<Learn::ParallelLearningAgent>> laM(5,mnistLE, set, params);
+    laM.connectAgentsPseudoRandomly();
+//    laM.connectAgents(laM.agents[0],laM.agents[1], true);
+//    laM.connectAgents(laM.agents[2],laM.agents[0], true);
+//    laM.connectAgents(laM.agents[3],laM.agents[0], true);
+//    laM.connectAgents(laM.agents[1],laM.agents[2], true);
+//    laM.connectAgents(laM.agents[1],laM.agents[3], true);
+//    laM.connectAgents(laM.agents[2],laM.agents[3], true);
 
-	// Create an exporter for all graphs
-	File::TPGGraphDotExporter dotExporter("out_0000.dot", *la.getTPGGraph());
+
+    // Instantiate and init the learning agent
 
 	// Start a thread for controlling the loop
 #ifndef NO_CONSOLE_CONTROL
@@ -123,12 +143,70 @@ int main() {
 #endif
 
 	// Adds a logger to the LA (to get statistics on learning) on std::cout
-	Log::LABasicLogger logCout(la);
+	//Log::LABasicLogger logCout(la);
+    Log::LABasicLogger basicLogger(*laM.agents[0]);
+    //CSV logger
+//    char* CSVfilename = concatenateStrings(saveFolderPath, "/training_data.csv");
+//    std::ofstream CSVof;
+//    CSVof.open (CSVfilename, std::ios::out);
+//    if (!CSVof.is_open())
+//    {
+//        std::cout << "Cannot open file " << CSVfilename << std::endl;
+//        exit(0);
+//    }
+//    Log::LABasicLogger csvLogger(la, CSVof, 0, ",");
+//
+//    char buff[BUFFER_SIZE];
+//    sprintf(buff, "%s/Graphs/out_0000.dot", saveFolderPath);
+//    File::TPGGraphDotExporter dotExporter(buff, *la.getTPGGraph());
+//    // Logging best policy stat.
+//    std::ofstream stats;
+//    stats.open("bestPolicyStats.md");
+//    Log::LAPolicyStatsLogger policyStatsLogger(la, stats);
 
-	// File for printing best policy stat.
-	std::ofstream stats;
-	stats.open("bestPolicyStats.md");
-	Log::LAPolicyStatsLogger logStats(la, stats);
+
+    //CSV logger
+
+    std::vector<std::ofstream> CSVof;
+    char* CSVfilename[laM.agents.size()] ;
+    char buff[BUFFER_SIZE];
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        //init agents
+        laM.agents[i]->init();
+        sprintf(buff, "/training_data_agent%01d.csv",i);
+        CSVfilename[i] = concatenateStrings(saveFolderPath, buff);
+
+        CSVof.emplace_back(CSVfilename[i], std::ios::out);
+        if (!CSVof[i].is_open())
+        {
+            std::cout << "Cannot open file " << CSVfilename[i] << std::endl;
+            exit(0);
+        }
+    }
+
+    std::vector<Log::LABasicLogger> csvLogger;
+    csvLogger.reserve(laM.agents.size()); //Danger!!!!!!!!!!!!!
+    for (int i = 0; i < laM.agents.size(); ++i) {
+        csvLogger.emplace_back(*laM.agents[i], CSVof[i], 0, ",");
+    }
+    // Create an exporter for all graphs
+    std::vector<File::TPGGraphDotExporter*> dotExporters;
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        sprintf(buff, "%s/Graphs/out%d_0000.dot", saveFolderPath,i);
+        dotExporters.push_back(new File::TPGGraphDotExporter(buff, *laM.agents[i]->getTPGGraph()));
+    }
+    // Logging best policy stat.
+    std::vector<std::ofstream> stats;
+    stats.reserve(laM.nbAgents);//Danger!!!!!!!!!!!!!
+    std::vector<Log::LAPolicyStatsLogger> policyStatsLogger;
+    policyStatsLogger.reserve(laM.nbAgents);//Danger!!!!!!!!!!!!!
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        sprintf(buff,"bestPolicyStats_%01d.md",i);
+        stats.emplace_back(buff,std::ios::out);
+        stats[i].open(buff,std::ios::out);
+        policyStatsLogger.emplace_back(*laM.agents[i], stats[i]);
+
+    }
 
 	// Export parameters before starting training.
 	// These may differ from imported parameters because of LE or machine specific
@@ -136,49 +214,80 @@ int main() {
 	File::ParametersParser::writeParametersToJson("exported_params.json", params);
 
 	// Train for NB_GENERATIONS generations
-	for (int i = 0; i < params.nbGenerations && !exitProgram; i++) {
-		char buff[13];
-		sprintf(buff, "out_%04d.dot", i);
-		dotExporter.setNewFilePath(buff);
-		dotExporter.print();
+    uint64_t aggregationNumber = 0;
+    for (uint64_t i = 0; i < params.nbGenerations && !exitProgram; i++) {
 
-		la.trainOneGeneration(i);
+        for (int j = 0; j < laM.nbAgents; ++j) {
+            sprintf(buff, "%s/Graphs/out%01d_%04ld.dot", saveFolderPath, j, i);
+            dotExporters.at(j)->setNewFilePath(buff);
+            dotExporters.at(j)->print();
+        }
+
+        //la.trainOneGeneration(i);
+        // Train one generation
+        if (i == laM.agents[0]->params.nbGenerationPerAggregation * (aggregationNumber+1))
+        {
+            laM.exchangeBestBranchs();
+            //for each agent copy all received branchs in the TPGGraph
+            std::for_each(laM.agents.begin(),laM.agents.end(),
+                          [](auto *agent){
+
+                              // copy all branchs
+                              for (auto branch : agent->getBestBranch()){
+                                  Mutator::BranchMutator::copyBranch(branch, *(agent->getTPGGraph()));
+                              }
+                              //Empty Epmty the bestBranchs vector to get ready to receive new ones
+                              agent->emptyBranchs();
+                          });
+            aggregationNumber++;
+        }
+        for (auto agent : laM.agents)
+        {
+            agent->trainOneGeneration(i);
+        }
 
 		if (printStats) {
-			mnistLE.printClassifStatsTable(la.getTPGGraph()->getEnvironment(), la.getBestRoot().first);
+			mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
 			printStats = false;
 		}
 	}
 
-	// Keep best policy
-	la.keepBestPolicy();
 
-	// Clear introns instructions
-	la.getTPGGraph()->clearProgramIntrons();
+    TPG::PolicyStats ps;
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        // Keep best policy
+        laM.agents[i]->keepBestPolicy();
+        // Clear introns instructions
+        laM.agents[i]->getTPGGraph()->clearProgramIntrons();
+        // Export the graph
+        sprintf(buff, "%s/Graphs/out%01d_best.dot", saveFolderPath, i);
+        dotExporters.at(i)->setNewFilePath(buff);
+        dotExporters.at(i)->print();
 
-	// Export the graph
-	dotExporter.setNewFilePath("out_best.dot");
-	dotExporter.print();
 
-	TPG::PolicyStats ps;
-	ps.setEnvironment(la.getTPGGraph()->getEnvironment());
-	ps.analyzePolicy(la.getBestRoot().first);
-	std::ofstream bestStats;
-	bestStats.open("out_best_stats.md");
-	bestStats << ps;
-	bestStats.close();
+        // Export stats file to logs directory
+        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
+        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
+        std::ofstream bestStats;
+        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath, i);
+        bestStats.open("buff");
+        bestStats << ps;
+        bestStats.close();
+        stats[i].close();
+    }
 
-	// close log file also
-	stats.close();
+        // Print stats one last time
+    mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
 
-	// Print stats one last time
-	mnistLE.printClassifStatsTable(la.getTPGGraph()->getEnvironment(), la.getTPGGraph()->getRootVertices().at(0));
+    // cleanup
+    for (unsigned int i = 0; i < set.getNbInstructions(); i++) {
+        delete (&set.getInstruction(i));
+    }
 
-	// cleanup
-	for (unsigned int i = 0; i < set.getNbInstructions(); i++) {
-		delete (&set.getInstruction(i));
-	}
-
+    for (int i = 0; i < dotExporters.size(); ++i) {
+        delete dotExporters[i];
+    }
+    delete[] saveFolderPath;
 #ifndef NO_CONSOLE_CONTROL
 	// Exit the thread
 	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";

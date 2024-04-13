@@ -13,7 +13,7 @@ def plot_X_Y(x,y):
 
     # Dictionary to store sum of y values and count of occurrences for each x value
     x_y_sum_count = defaultdict(lambda: [0, 0])  # Key: x value, Value: [sum of y values, count]
-    print(csv_directory)
+
     # Iterate over each entry in the parent directory
     for entry in os.listdir(csv_directory):
         # Join the parent directory path with the current entry to get the full path

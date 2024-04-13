@@ -3,16 +3,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-# Set the backend to a different one that supports interactive display
-plt.switch_backend('TkAgg')
 
-
-def plot_X_Y(x,y):
+def plot_X_Y(axes_pairs):
     # Directory containing CSV files
     csv_directory = os.getcwd()
 
-    # Dictionary to store sum of y values and count of occurrences for each x value
-    x_y_sum_count = defaultdict(lambda: [0, 0])  # Key: x value, Value: [sum of y values, count]
+    # Initialize dictionary to store sum of y values and count of occurrences for each x value for each axis pair
+    x_y_sum_count = {}
+    for x, y in axes_pairs:
+        x_y_sum_count[(x, y)] = defaultdict(lambda: [0, 0])  # Key: (x, y), Value: defaultdict [sum of y values, count]
 
     # Iterate over each entry in the parent directory
     for entry in os.listdir(csv_directory):
@@ -26,27 +25,32 @@ def plot_X_Y(x,y):
                     file_path = os.path.join(entry_path, filename)
                     # Read CSV file into a DataFrame
                     df = pd.read_csv(file_path)
-                    # Group y values by x values and update the dictionary
-                    for x_val, y_val in zip(df[x], df[y]):
-                        x_y_sum_count[x_val][0] += y_val
-                        x_y_sum_count[x_val][1] += 1
+                    # Group y values by x values and update the dictionary for each axis pair
+                    for x, y in axes_pairs:
+                        for x_val, y_val in zip(df[x], df[y]):
+                            x_y_sum_count[(x, y)][x_val][0] += y_val
+                            x_y_sum_count[(x, y)][x_val][1] += 1
 
-    # Calculate the average of y values for each x value
-    avg_y_values = {x_val: y_sum / count for x_val, (y_sum, count) in x_y_sum_count.items()}
+    # Calculate the average of y values for each x value for each axis pair
+    avg_y_values = {}
+    for x, y in axes_pairs:
+        avg_y_values[(x, y)] = {x_val: y_sum / count for x_val, (y_sum, count) in x_y_sum_count[(x, y)].items()}
 
-    # Sort the dictionary by x values
-    sorted_avg_y_values = dict(sorted(avg_y_values.items()))
+    # Plot the curves for each axis pair on the same figure
+    for x, y in axes_pairs:
+        sorted_avg_y_values = dict(sorted(avg_y_values[(x, y)].items()))
+        plt.plot(list(sorted_avg_y_values.keys()), list(sorted_avg_y_values.values()), label=f'{y} = f({x})')
 
-    # Plot the curve of y = f(x)
-    plt.plot(list(sorted_avg_y_values.keys()), list(sorted_avg_y_values.values()), label=f'{y} = f({x})')
-
-    plt.xlabel(x)
-    plt.ylabel(y)
-    plt.title(f'{y} vs {x}')
+    plt.xlabel(axes_pairs[0][0])  # Assuming all x axes are the same
+    plt.ylabel('Y')
+    plt.title('Multiple Curves Plot')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(csv_directory, f'{y}_vs_{x}.png'))
     plt.show()
 
 
-plot_X_Y('Gen','T_Max')
+# Define the list of x and y axes pairs
+axes_pairs = [('Gen', 'T_Max')]  # Add more pairs as needed
+
+# Call the function with the list of axes pairs
+plot_X_Y(axes_pairs)
