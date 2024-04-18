@@ -41,7 +41,7 @@ void getKey(std::atomic<bool>& exit, std::atomic<bool>& printStats) {
 
 int main() {
     //Create a folder for storing the results of the training experimentations
-    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/5Agents/");
+    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/2Agents/");
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -117,9 +117,9 @@ int main() {
 //	// Instantiate and init the learning agent
 //	Learn::ClassificationLearningAgent la(mnistLE, set, params);
 //	la.init();
-    Learn::FLAgentManager<Learn::ClassificationLearningAgent<Learn::ParallelLearningAgent>> laM(5,mnistLE, set, params);
-    laM.connectAgentsPseudoRandomly();
-//    laM.connectAgents(laM.agents[0],laM.agents[1], true);
+    Learn::FLAgentManager<Learn::ClassificationLearningAgent<Learn::ParallelLearningAgent>> laM(2,mnistLE, set, params);
+    //laM.connectAgentsPseudoRandomly();
+    laM.connectAgents(laM.agents[0],laM.agents[1]);
 //    laM.connectAgents(laM.agents[2],laM.agents[0], true);
 //    laM.connectAgents(laM.agents[3],laM.agents[0], true);
 //    laM.connectAgents(laM.agents[1],laM.agents[2], true);

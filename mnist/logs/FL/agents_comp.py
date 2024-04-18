@@ -8,7 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def plot_X_Y_for_directories(directory_paths, axes_pairs):
+def plot_X_Y_for_directories(directory_paths, axes_pairs,save):
     for directory_path in directory_paths:
         for entry in os.listdir(directory_path):
             entry_path = os.path.join(directory_path, entry)
@@ -25,8 +25,9 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs):
                 ax.set_title(entry)
                 ax.legend()
                 ax.grid(True)
-                save_path = os.path.join(entry_path, directory_path.split('/')[-1]+".png")
-                plt.savefig(save_path,format='png')  # Save the plot in the directory
+                if save:
+                    save_path = os.path.join(entry_path, directory_path.split('/')[-1]+".png")
+                    plt.savefig(save_path,format='png')  # Save the plot in the directory
                 #plt.show()
                 plt.close(fig)  # Close the figure to release memory
 
@@ -34,10 +35,10 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs):
 # Directory containing CSV files
 w_directory = os.getcwd()
 # List of directory paths
-directory_paths = [os.path.join(w_directory, '5Agents')]
+directory_paths = [os.path.join(w_directory, '2Agents')]
 
 # Define the list of x and y axes pairs
 axes_pairs = [('Gen', 'T_Max')]
 
 # Call the function with the directory paths and axes pairs
-plot_X_Y_for_directories(directory_paths, axes_pairs)
+plot_X_Y_for_directories(directory_paths, axes_pairs,False)

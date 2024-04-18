@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 
-def plot_X_Y_for_directories(directory_paths, axes_pairs):
+def plot_X_Y_for_directories(directory_paths, axes_pairs, save= False):
     # Iterate over each directory
     for entry_path in directory_paths:
         # Initialize dictionary to store sum of y values and count of occurrences for each x value for each axis pair
@@ -44,19 +44,20 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs):
     plt.title('Multiple Curves Plot')
     plt.legend()
     plt.grid(True)
-    save_path = os.path.join(entry_path, directory_paths[0]+".png")
-    plt.savefig(save_path)  # Save the plot as a PNG file
+    if save :
+        save_path = os.path.join(entry_path, directory_paths[0]+".png")
+        plt.savefig(save_path)  # Save the plot as a PNG file
     plt.show()
 
 
 # Directory containing CSV files
 w_directory = os.getcwd()
 # List of directory paths containing CSV files
-dir_paths = [os.path.join(w_directory, "FL/5Agents"), os.path.join(w_directory, "classic")]
+dir_paths = [os.path.join(w_directory, "FL/2Agents"),os.path.join(w_directory, "FL/3Agents"),os.path.join(w_directory, "FL/4Agents"),os.path.join(w_directory, "FL/5Agents"), os.path.join(w_directory, "classic")]
 #,  os.path.join(w_directory, "FL/3Agents"),os.path.join(w_directory, "FL/4Agents"),  os.path.join(w_directory, "FL/5Agents")]
 
 
 # Define the list of x and y axes pairs
 axes_pairs = [('Gen', 'T_Max')]
 # Call the function with the list of directory paths and x, y axes
-plot_X_Y_for_directories(dir_paths, axes_pairs)
+plot_X_Y_for_directories(dir_paths, axes_pairs, False)
