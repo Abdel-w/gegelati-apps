@@ -4,7 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <inttypes.h>
-
+#include <cstdlib>
 #include <gegelati.h>
 
 #include "mnist.h"
@@ -39,9 +39,19 @@ void getKey(std::atomic<bool>& exit, std::atomic<bool>& printStats) {
 	std::cout.flush();
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Check if the correct number of arguments is provided
+    if(argc != 3){
+        std::cerr << "Incorrect number of arguments. Usage: ./program_name init_tpg_seed nb_agents" << std::endl;
+        return 1;
+    }
+    // Extract the seed from the command line argument
+    uint64_t init_seed = std::atoi(argv[1]);
+
     //Create a folder for storing the results of the training experimentations
-    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/2Agents/");
+    char file_name_nb_agent[BUFFER_SIZE];
+    sprintf(file_name_nb_agent, "/logs/FL/%sAgents/", argv[2]);
+    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent);
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -117,9 +127,16 @@ int main() {
 //	// Instantiate and init the learning agent
 //	Learn::ClassificationLearningAgent la(mnistLE, set, params);
 //	la.init();
-    Learn::FLAgentManager<Learn::ClassificationLearningAgent<Learn::ParallelLearningAgent>> laM(2,mnistLE, set, params);
-    //laM.connectAgentsPseudoRandomly();
-    laM.connectAgents(laM.agents[0],laM.agents[1]);
+    //Instantiate, connect and init the learning agents with different seeds
+    Learn::FLAgentManager<Learn::ClassificationLearningAgent<Learn::ParallelLearningAgent>> laM(std::atoi(argv[2]),mnistLE, set, params);
+    Mutator::RNG rng(init_seed);
+    laM.connectAgentsPseudoRandomly(rng.getUnsignedInt64(0, 20));
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        laM.agents[i]->init(init_seed);
+        rng.setSeed(init_seed);
+        init_seed = rng.getUnsignedInt64(0, 20);
+    }
+    // laM.connectAgents(laM.agents[0],laM.agents[1]);
 //    laM.connectAgents(laM.agents[2],laM.agents[0], true);
 //    laM.connectAgents(laM.agents[3],laM.agents[0], true);
 //    laM.connectAgents(laM.agents[1],laM.agents[2], true);
@@ -171,8 +188,6 @@ int main() {
     char* CSVfilename[laM.agents.size()] ;
     char buff[BUFFER_SIZE];
     for (int i = 0; i < laM.nbAgents; ++i) {
-        //init agents
-        laM.agents[i]->init();
         sprintf(buff, "/training_data_agent%01d.csv",i);
         CSVfilename[i] = concatenateStrings(saveFolderPath, buff);
 
