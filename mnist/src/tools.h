@@ -12,10 +12,10 @@ constexpr size_t BUFFER_SIZE = 256;
 char* concatenateStrings(const char* str1, const char* str2);
 
 // concatenates the current time in the provided buffer
-void getCurrentTimeAsString(char* bufferTime);
+void getCurrentTimeAsString(char* bufferTime, char* gen_per_agreg);
 
 // Create a specific folder for this training
-char* createFolderWithCurrentTime(char* path);
+char* createFolderWithCurrentTime(char* path, char* gen_per_agreg);
 
 // copy the source file into the dest file
 void copyFile(char *filename_src, char *filename_dest);

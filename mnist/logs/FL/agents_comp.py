@@ -41,4 +41,4 @@ directory_paths = [os.path.join(w_directory, '2Agents')]
 axes_pairs = [('Gen', 'T_Max')]
 
 # Call the function with the directory paths and axes pairs
-plot_X_Y_for_directories(directory_paths, axes_pairs,False)
+plot_X_Y_for_directories(directory_paths, axes_pairs, True)

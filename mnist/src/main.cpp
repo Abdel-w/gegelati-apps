@@ -40,18 +40,14 @@ void getKey(std::atomic<bool>& exit, std::atomic<bool>& printStats) {
 }
 
 int main(int argc, char *argv[]) {
-    // Check if the correct number of arguments is provided
-    if(argc != 3){
-        std::cerr << "Incorrect number of arguments. Usage: ./program_name init_tpg_seed nb_agents" << std::endl;
-        return 1;
-    }
+
     // Extract the seed from the command line argument
     uint64_t init_seed = std::atoi(argv[1]);
 
     //Create a folder for storing the results of the training experimentations
     char file_name_nb_agent[BUFFER_SIZE];
     sprintf(file_name_nb_agent, "/logs/FL/%sAgents/", argv[2]);
-    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent);
+    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent, argv[3] );
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -115,6 +111,14 @@ int main(int argc, char *argv[]) {
 	// Loads them from the file params.json
 	Learn::LearningParameters params;
 	File::ParametersParser::loadParametersFromJson(ROOT_DIR "/params.json", params);
+
+    // change the nbGenerationPerAggregation parame
+
+    if ( argc >= 3){
+        params.maxNbOfConnections = (uint64_t) (std::atoi(argv[3]) - 1) ;
+        if (argc >= 4)
+            params.nbGenerationPerAggregation = (uint64_t) std::atoi(argv[3]);
+    }
 #ifdef NB_GENERATIONS
 	params.nbGenerations = NB_GENERATIONS;
 #endif // !NB_GENERATIONS
@@ -137,13 +141,6 @@ int main(int argc, char *argv[]) {
         init_seed = rng.getUnsignedInt64(0, 20);
     }
     // laM.connectAgents(laM.agents[0],laM.agents[1]);
-//    laM.connectAgents(laM.agents[2],laM.agents[0], true);
-//    laM.connectAgents(laM.agents[3],laM.agents[0], true);
-//    laM.connectAgents(laM.agents[1],laM.agents[2], true);
-//    laM.connectAgents(laM.agents[1],laM.agents[3], true);
-//    laM.connectAgents(laM.agents[2],laM.agents[3], true);
-
-
     // Instantiate and init the learning agent
 
 	// Start a thread for controlling the loop
@@ -161,7 +158,7 @@ int main(int argc, char *argv[]) {
 
 	// Adds a logger to the LA (to get statistics on learning) on std::cout
 	//Log::LABasicLogger logCout(la);
-    Log::LABasicLogger basicLogger(*laM.agents[0]);
+    //Log::LABasicLogger basicLogger(*laM.agents[0]);
     //CSV logger
 //    char* CSVfilename = concatenateStrings(saveFolderPath, "/training_data.csv");
 //    std::ofstream CSVof;
@@ -265,7 +262,9 @@ int main(int argc, char *argv[]) {
 			mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
 			printStats = false;
 		}
+        std::cout<<"Gen: "<<i;
 	}
+    std::cout<<"heere1111\n";
 
 
     TPG::PolicyStats ps;
@@ -281,18 +280,19 @@ int main(int argc, char *argv[]) {
 
 
         // Export stats file to logs directory
-        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
-        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
-        std::ofstream bestStats;
-        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath, i);
-        bestStats.open("buff");
-        bestStats << ps;
-        bestStats.close();
-        stats[i].close();
+//        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
+//        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
+//        std::ofstream bestStats;
+//        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath, i);
+//        bestStats.open("buff");
+//        bestStats << ps;
+//        bestStats.close();
+//        stats[i].close();
     }
 
-        // Print stats one last time
-    mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
+    // Print stats one last time
+    //mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
+    std::cout<<"heere22222\n";
 
     // cleanup
     for (unsigned int i = 0; i < set.getNbInstructions(); i++) {
@@ -303,6 +303,7 @@ int main(int argc, char *argv[]) {
         delete dotExporters[i];
     }
     delete[] saveFolderPath;
+    std::cout<<"heere";
 #ifndef NO_CONSOLE_CONTROL
 	// Exit the thread
 	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";
