@@ -122,12 +122,11 @@ void Render::controllerLoop(std::atomic<bool>& exit, std::atomic<bool>& toggleDi
 			// Compute all moves
 			replay.clear();
 			pendulumLE.reset(0, Learn::LearningMode::VALIDATION);
-			for (auto action = 0; action < params.maxNbActionsPerEval; action++) {
+            for (uint64_t action = 0; action < params.maxNbActionsPerEval; action++) {
 				auto vertexList = tee.executeFromRoot(**bestRoot);
 				const auto actionID = ((const TPG::TPGAction*)vertexList.back())->getActionID();
 				replay.push_back(std::make_tuple(action, pendulumLE.getAngle(), pendulumLE.getActionFromID(actionID)));
 				pendulumLE.doAction(actionID);
-
 			}
 
 			doDisplay = false;
@@ -139,7 +138,14 @@ void Render::controllerLoop(std::atomic<bool>& exit, std::atomic<bool>& toggleDi
 			frame = std::get<0>(replay.front());
 			replay.pop_front();
 		}
+        // If the training is over and we have displayed the last action of the replay, kill the threadDisplay
+        // they are params.maxNbActionsPerEval actions on a replay to be displayed for each gen
+        if ((generation == params.nbGenerations-1) && (replay.empty())) {
+            exit = true;
+            doDisplay = false;
+        }
 
+        // Display the environment, catch the possible event
 		int event = Render::renderEnv(&angleDisplay, &torqueDisplay, frame, generation);
 		switch (event) {
 		case 1:
@@ -165,12 +171,8 @@ void Render::controllerLoop(std::atomic<bool>& exit, std::atomic<bool>& toggleDi
 void Render::displayText(const char* text, int posX, int posY) {
 	// Color of text
 	SDL_Color colorGreen = { 0, 255, 0, 255 };
-	SDL_Color colorWhite = { 255, 255, 255, 255 };
-
-	SDL_Surface* textSurf = TTF_RenderText_Blended(display.font, text,
-		colorGreen);
-	SDL_Texture* texture = SDL_CreateTextureFromSurface(display.renderer,
-		textSurf);
+    SDL_Surface* textSurf = TTF_RenderText_Blended(display.font, text, colorGreen);
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(display.renderer, textSurf);
 
 	int width, height;
 	SDL_QueryTexture(texture, NULL, NULL, &width, &height);
@@ -188,10 +190,6 @@ void Render::displayText(const char* text, int posX, int posY) {
 }
 
 int Render::renderEnv(float* state, float* torque, uint64_t frame, uint64_t generation) {
-	static long int i = 0;
-	static double max_fps = 0.;
-	static double avg_fps = 0.;
-	static double min_fps = DBL_MAX;
 
 	// Select the color for drawing. It is set to red here. 
 	SDL_SetRenderDrawColor(display.renderer, 255, 255, 255, 255);
@@ -209,26 +207,26 @@ int Render::renderEnv(float* state, float* torque, uint64_t frame, uint64_t gene
 	SDL_RenderCopyEx(display.renderer, display.texturePendulum, NULL, &destPendulum, angle, &centerPendulum, SDL_FLIP_NONE);
 
 	if (fabs(*torque) > 0.0) {
+        // scale the arrow proportionnaly to the torque
 		float scale = std::sqrt(std::fabs(*torque));
 		// Position of the pendulum in the window
 		const int arrowWidth = 178 * scale;
 		const int arrowHeight = 69 * scale;
 
-		SDL_Rect destArrow = { (DISPLAY_W - arrowWidth) / 2, DISPLAY_H / 2 + 14 + scale * 50.0, arrowWidth , arrowHeight };
-		SDL_Point centerArrow = { arrowWidth / 2, arrowHeight / 2 };
+        SDL_Rect destArrow = { (DISPLAY_W - arrowWidth) / 2, int(DISPLAY_H / 2 + 14 + scale * 50.0), arrowWidth , arrowHeight };
 
 		// Display arrow
-		SDL_RenderCopyEx(display.renderer, display.textureArrow, NULL, &destArrow, NULL, NULL, (*torque > 0.0) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+        SDL_RenderCopyEx(display.renderer, display.textureArrow, NULL, &destArrow, 0.0, NULL, (*torque > 0.0) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 	}
 
 	// Print Generation text
 	char generationString[100];
-	sprintf(generationString, "   gen: %04lld", generation);
+    sprintf(generationString, "   gen: %04ld", generation);
 	Render::displayText(generationString, 0, 0);
 
 	// Print FrameNumber text
 	char frameNumber[17];
-	sprintf(frameNumber, "frame: %4lld", frame);
+    sprintf(frameNumber, "frame: %4ld", frame);
 	Render::displayText(frameNumber, 0, 22);
 
 	// Proceed to the actual display

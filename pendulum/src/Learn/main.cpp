@@ -12,9 +12,14 @@
 #include "instructions.h"
 
 #include "tools.h"
-int main() {
+int main(int argc, char *argv[]) {
+    // Extract the seed from the command line argument
+    uint64_t init_seed = std::atoi(argv[1]);
+
     //Create a folder for storing the results of the training experimentations
-    char* saveFolderPath = createFolderWithCurrentTime("/logs/FL/2Agents/");
+    char file_name_nb_agent[BUFFER_SIZE];
+    sprintf(file_name_nb_agent, "/logs/FL/%s_Agents/", argv[2]);
+    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent, argv[3] );
 
     // Export the src/instructions.cpp file and the params.json file to
     // keep traceability when looking at the logs
@@ -41,6 +46,13 @@ int main() {
 	// Loads them from the file params.json
 	Learn::LearningParameters params;
 	File::ParametersParser::loadParametersFromJson(ROOT_DIR "/params.json", params);
+    // change the nbGenerationPerAggregation parame
+    if ( argc >= 3){
+        params.maxNbOfConnections = (uint64_t) (std::atoi(argv[3]) - 1) ;
+        if (argc >= 4)
+            params.nbGenerationPerAggregation = (uint64_t) std::atoi(argv[3]);
+    }
+#
 #ifdef NB_GENERATIONS
 	params.nbGenerations = NB_GENERATIONS;
 #endif
@@ -50,38 +62,40 @@ int main() {
 
 	std::cout << "Number of threads: " << params.nbThreads << std::endl;
 
-    // Instantiate and initialize the FLAgent (LA)
-    Learn::FLAgentManager<Learn::ParallelLearningAgent> laM(2,pendulumLE, set, params);
-    //laM.connectAgentsPseudoRandomly();
-    laM.connectAgents(laM.agents[0],laM.agents[1], true);
-//    laM.connectAgents(laM.agents[2],laM.agents[0]);
-//    laM.connectAgents(laM.agents[1],laM.agents[2]);
+    //Instantiate, connect and init the learning agents with different seeds
+    Learn::FLAgentManager<Learn::ParallelLearningAgent> laM(std::atoi(argv[2]),pendulumLE, set, params);
+    Mutator::RNG rng(init_seed);
+    laM.connectAgentsPseudoRandomly(rng.getUnsignedInt64(0, 20));
+    for (int i = 0; i < laM.nbAgents; ++i) {
+        laM.agents[i]->init(init_seed);
+        rng.setSeed(init_seed);
+        init_seed = rng.getUnsignedInt64(0, 20);
+    }
+
 	// Instantiate and init the learning agent
 //	Learn::ParallelLearningAgent la(pendulumLE, set, params);
 //	la.init();
 
 	// Start a thread for controlling the loop
-#ifndef NO_CONSOLE_CONTROL
-	// Console
-	std::atomic<bool> exitProgram = true; // (set to false by other thread) 
-	std::atomic<bool> toggleDisplay = true;
-	std::atomic<bool> doDisplay = false;
-	std::atomic<uint64_t> generation = 0;
-    const TPG::TPGVertex* bestRoot = NULL;
-
-	std::thread threadDisplay(Render::controllerLoop, std::ref(exitProgram), std::ref(toggleDisplay), std::ref(doDisplay),
-		&bestRoot, std::ref(set), std::ref(pendulumLE), std::ref(params), std::ref(generation));
-
-	while (exitProgram); // Wait for other thread to print key info.
-#else 
-	std::atomic<bool> exitProgram = false; // (set to false by other thread) 
-	std::atomic<bool> toggleDisplay = false;
-#endif
+//#ifndef NO_CONSOLE_CONTROL
+//	// Console
+//	std::atomic<bool> exitProgram = true; // (set to false by other thread)
+//	std::atomic<bool> toggleDisplay = true;
+//	std::atomic<bool> doDisplay = false;
+//	std::atomic<uint64_t> generation = 0;
+//    const TPG::TPGVertex* bestRoot = NULL;
+//
+//	std::thread threadDisplay(Render::controllerLoop, std::ref(exitProgram), std::ref(toggleDisplay), std::ref(doDisplay),
+//		&bestRoot, std::ref(set), std::ref(pendulumLE), std::ref(params), std::ref(generation));
+//
+//	while (exitProgram); // Wait for other thread to print key info.
+//#else
+//	std::atomic<bool> exitProgram = false; // (set to false by other thread)
+//	std::atomic<bool> toggleDisplay = false;
+//#endif
 
 	// Basic logger
 	//Log::LABasicLogger basicLogger(la);
-    Log::LABasicLogger basicLogger(*laM.agents[0]);
-    //Log::LABasicLogger basicLoggera(*laM.agents[1]);
 
 
     //CSV logger
@@ -91,7 +105,7 @@ int main() {
     char buff[BUFFER_SIZE];
     for (int i = 0; i < laM.nbAgents; ++i) {
         //init agents
-        laM.agents[i]->init();
+        laM.agents[i]->init();//changer la seed aleatoirement
         sprintf(buff, "/training_data_agent%01d.csv",i);
         CSVfilename[i] = concatenateStrings(saveFolderPath, buff);
 
@@ -135,7 +149,7 @@ int main() {
 
 	// Train for params.nbGenerations generations
     uint64_t aggregationNumber = 0;
-    for (uint64_t i = 0; i < params.nbGenerations && !exitProgram; i++) {
+    for (uint64_t i = 0; i < params.nbGenerations ; i++) {
 
         for (int j = 0; j < laM.nbAgents; ++j) {
             sprintf(buff, "%s/Graphs/out%01d_%04ld.dot", saveFolderPath, j, i);
@@ -165,15 +179,15 @@ int main() {
         {
             agent->trainOneGeneration(i);
         }
-
-#ifndef NO_CONSOLE_CONTROL
-		generation = i;
-		if (toggleDisplay && !exitProgram) {
-			bestRoot = laM.agents[0]->getBestRoot().first;
-			doDisplay = true;
-			while (doDisplay && !exitProgram);
-		}
-#endif
+//
+//#ifndef NO_CONSOLE_CONTROL
+//		generation = i;
+//		if (toggleDisplay && !exitProgram) {
+//			bestRoot = laM.agents[0]->getBestRoot().first;
+//			doDisplay = true;
+//			while (doDisplay && !exitProgram);
+//		}
+//#endif
 	}
 
 	// Keep best policy
@@ -232,11 +246,11 @@ int main() {
         delete dotExporters[i];
     }
     delete[] saveFolderPath;
-#ifndef NO_CONSOLE_CONTROL
-	// Exit the thread
-	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";
-	threadDisplay.join();
-#endif
+//#ifndef NO_CONSOLE_CONTROL
+//	// Exit the thread
+//	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";
+//	threadDisplay.join();
+//#endif
 
 	return 0;
 }

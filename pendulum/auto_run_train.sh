@@ -15,7 +15,7 @@
 #Attetion
 # Le script utilise le répertoire du script lui-même pour trouver le chemin absolu vers votre programme d'entraînement.
 # Assurez-vous que le script est dans le répertoire du projet (Mnist, Pendulum...).
-# Assurez-vous que l'exécutable soit compilé.
+# Assurez-vous que l'executable soit compilé.
 
 # Vérifier si le nombre d'arguments est correct
 if [ "$#" -ne 3 ]; then
@@ -44,7 +44,7 @@ max_nbGenerationPerAggregation="$3" # nombre maximal d'agents
 # Résoudre les liens symboliques et obtenir le chemin absolu du script bash
 script_dir=$(dirname "$(readlink -f "$0")")
 # Chemin vers votre programme
-program_path="$script_dir/cmake-build-release/Release/mnist"
+program_path="$script_dir/cmake-build-release/Release/pendulum"
 
 #for agents in "${nb_agents[@]}"; do
 # Exécuter le programme pour chaque combinaison de paramètres

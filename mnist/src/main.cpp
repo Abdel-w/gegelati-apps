@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
 
     //Create a folder for storing the results of the training experimentations
     char file_name_nb_agent[BUFFER_SIZE];
-    sprintf(file_name_nb_agent, "/logs/FL/%sAgents/", argv[2]);
+    sprintf(file_name_nb_agent, "/logs/FL/%s_Agents/", argv[2]);
     char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent, argv[3] );
 
     // Export the src/instructions.cpp file and the params.json file to
@@ -111,9 +111,7 @@ int main(int argc, char *argv[]) {
 	// Loads them from the file params.json
 	Learn::LearningParameters params;
 	File::ParametersParser::loadParametersFromJson(ROOT_DIR "/params.json", params);
-
     // change the nbGenerationPerAggregation parame
-
     if ( argc >= 3){
         params.maxNbOfConnections = (uint64_t) (std::atoi(argv[3]) - 1) ;
         if (argc >= 4)
@@ -144,17 +142,17 @@ int main(int argc, char *argv[]) {
     // Instantiate and init the learning agent
 
 	// Start a thread for controlling the loop
-#ifndef NO_CONSOLE_CONTROL
-	std::atomic<bool> exitProgram = true; // (set to false by other thread) 
-	std::atomic<bool> printStats = false;
-
-	std::thread threadKeyboard(getKey, std::ref(exitProgram), std::ref(printStats));
-
-	while (exitProgram); // Wait for other thread to print key info.
-#else 
-	std::atomic<bool> exitProgram = false; // (set to false by other thread) 
-	std::atomic<bool> printStats = false;
-#endif
+//#ifndef NO_CONSOLE_CONTROL
+//	std::atomic<bool> exitProgram = true; // (set to false by other thread)
+//	std::atomic<bool> printStats = false;
+//
+//	std::thread threadKeyboard(getKey, std::ref(exitProgram), std::ref(printStats));
+//
+//	while (exitProgram); // Wait for other thread to print key info.
+//#else
+//	std::atomic<bool> exitProgram = false; // (set to false by other thread)
+//	std::atomic<bool> printStats = false;
+//#endif
 
 	// Adds a logger to the LA (to get statistics on learning) on std::cout
 	//Log::LABasicLogger logCout(la);
@@ -227,7 +225,7 @@ int main(int argc, char *argv[]) {
 
 	// Train for NB_GENERATIONS generations
     uint64_t aggregationNumber = 0;
-    for (uint64_t i = 0; i < params.nbGenerations && !exitProgram; i++) {
+    for (uint64_t i = 0; i < params.nbGenerations ; i++) {
 
         for (int j = 0; j < laM.nbAgents; ++j) {
             sprintf(buff, "%s/Graphs/out%01d_%04ld.dot", saveFolderPath, j, i);
@@ -258,13 +256,12 @@ int main(int argc, char *argv[]) {
             agent->trainOneGeneration(i);
         }
 
-		if (printStats) {
-			mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
-			printStats = false;
-		}
-        std::cout<<"Gen: "<<i;
+//		if (printStats) {
+//			mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
+//			printStats = false;
+//		}
+
 	}
-    std::cout<<"heere1111\n";
 
 
     TPG::PolicyStats ps;
@@ -280,19 +277,18 @@ int main(int argc, char *argv[]) {
 
 
         // Export stats file to logs directory
-//        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
-//        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
-//        std::ofstream bestStats;
-//        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath, i);
-//        bestStats.open("buff");
-//        bestStats << ps;
-//        bestStats.close();
-//        stats[i].close();
+        ps.setEnvironment(laM.agents[i]->getTPGGraph()->getEnvironment());
+        ps.analyzePolicy(laM.agents[i]->getBestRoot().first);
+        std::ofstream bestStats;
+        sprintf(buff, "%s/out%01d_best_stats.md", saveFolderPath, i);
+        bestStats.open("buff");
+        bestStats << ps;
+        bestStats.close();
+        stats[i].close();
     }
 
     // Print stats one last time
-    //mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
-    std::cout<<"heere22222\n";
+//    mnistLE.printClassifStatsTable(laM.agents[0]->getTPGGraph()->getEnvironment(), laM.agents[0]->getBestRoot().first);
 
     // cleanup
     for (unsigned int i = 0; i < set.getNbInstructions(); i++) {
@@ -303,12 +299,12 @@ int main(int argc, char *argv[]) {
         delete dotExporters[i];
     }
     delete[] saveFolderPath;
-    std::cout<<"heere";
-#ifndef NO_CONSOLE_CONTROL
-	// Exit the thread
-	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";
-	threadKeyboard.join();
-#endif
+
+//#ifndef NO_CONSOLE_CONTROL
+//	// Exit the thread
+//	std::cout << "Exiting program, press a key then [enter] to exit if nothing happens.";
+//	threadKeyboard.join();
+//#endif
 
 	return 0;
 }

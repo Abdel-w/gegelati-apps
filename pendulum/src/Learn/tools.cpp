@@ -16,18 +16,20 @@ char* concatenateStrings(const char* str1, const char* str2) {
 }
 
 // concatenates the current time in the provided buffer
-void getCurrentTimeAsString(char* bufferTime) {
+void getCurrentTimeAsString(char* bufferTime, char* gen_per_agreg) {
     // get currrent time
 	auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	// convert time_t struct into char* 
-    std::strftime(bufferTime, BUFFER_SIZE, "%Y-%m-%d_%H:%M.%S", std::localtime(&now));
+	// convert time_t struct into char*
+    char buff[BUFFER_SIZE];
+    std::strftime(buff, BUFFER_SIZE, "%Y-%m-%d_%H:%M.%S", std::localtime(&now));
+    sprintf(bufferTime,"nb_aggr_%s|%s",gen_per_agreg,buff);
 }
 
-char* createFolderWithCurrentTime(char* path) {
+char* createFolderWithCurrentTime(char* path, char* gen_per_agreg) {
     // the folder is named after the exact time it was created
-	char bufferTime[BUFFER_SIZE];
+	char bufferTime[BUFFER_SIZE*2];
 
-	getCurrentTimeAsString(bufferTime);
+	getCurrentTimeAsString(bufferTime,gen_per_agreg);
 
     char* bufferPath = concatenateStrings(ROOT_DIR, path);
 	char* saveFolderPath = concatenateStrings(bufferPath, bufferTime);
