@@ -35,7 +35,7 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs,save):
 # Directory containing CSV files
 w_directory = os.getcwd()
 # List of directory paths
-directory_paths = [os.path.join(w_directory, '2Agents')]
+directory_paths = [os.path.join(w_directory, '4_Agents')]
 
 # Define the list of x and y axes pairs
 axes_pairs = [('Gen', 'T_Max')]

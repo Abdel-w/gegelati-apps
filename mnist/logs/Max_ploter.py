@@ -5,6 +5,8 @@ from collections import defaultdict
 
 
 def plot_X_Y_for_directories(directory_paths, axes_pairs, save=False):
+    # Initialize a list to store DataFrames for each directory
+    max_y_dfs = []
     # Iterate over each directory
     for entry_path in directory_paths:
         # Initialize dictionary to store maximum y values for each x value for each axis pair
@@ -32,6 +34,9 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs, save=False):
             sorted_max_y_values = dict(sorted(max_y_values[(x, y)].items()))
             plt.plot(list(sorted_max_y_values.keys()), list(sorted_max_y_values.values()), label=entry_path.split("/")[-1])
 
+        # Add the maximum values to the list of DataFrames
+        max_y_dfs.append(pd.DataFrame(max_y_values[(axes_pairs[0][0], axes_pairs[0][1])], index=[entry_path.split("/")[-1]]))
+
     plt.xlabel(axes_pairs[0][0])  # Assuming all x axes are the same
     plt.ylabel(axes_pairs[0][1])
     plt.title('Multiple Curves Plot')
@@ -40,6 +45,11 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs, save=False):
     if save:
         save_path = os.path.join(entry_path, directory_paths[0] + ".png")
         plt.savefig(save_path)  # Save the plot as a PNG file
+    # Concatenate the list of DataFrames into a single DataFrame
+    max_y_df = pd.concat(max_y_dfs)
+    # Save the maximum values DataFrame to a CSV file
+    max_y_csv_path = os.path.join(os.path.dirname(directory_paths[0]), "max_y_values.csv")
+    max_y_df.to_csv(max_y_csv_path)
     plt.show()
 
 
@@ -47,11 +57,9 @@ def plot_X_Y_for_directories(directory_paths, axes_pairs, save=False):
 w_directory = os.getcwd()
 # List of directory paths containing CSV files
 dir_paths = [
-    os.path.join(w_directory, "FL/2Agents"),
-    os.path.join(w_directory, "FL/3Agents"),
-    os.path.join(w_directory, "FL/4Agents"),
-    os.path.join(w_directory, "FL/5Agents"),
-    os.path.join(w_directory, "classic")
+    os.path.join(w_directory, "FL/2_Agents"),
+    os.path.join(w_directory, "FL/5_Agents"),
+
 ]
 
 # Define the list of x and y axes pairs
