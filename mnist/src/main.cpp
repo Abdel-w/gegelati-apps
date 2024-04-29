@@ -47,16 +47,7 @@ int main(int argc, char *argv[]) {
     //Create a folder for storing the results of the training experimentations
     char file_name_nb_agent[BUFFER_SIZE];
     sprintf(file_name_nb_agent, "/logs/FL/%s_Agents/", argv[2]);
-    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent, argv[3] );
-
-    // Export the src/instructions.cpp file and the params.json file to
-    // keep traceability when looking at the logs
-    char filename_src[BUFFER_SIZE];
-    char filename_dest[BUFFER_SIZE];
-
-    sprintf(filename_src, "%s/params.json", ROOT_DIR);
-    sprintf(filename_dest, "%s/params.json", saveFolderPath);
-    copyFile(filename_src, filename_dest);
+    char* saveFolderPath = createFolderWithCurrentTime(file_name_nb_agent, argv[3], argv[1] );
 
     std::cout << "Start MNIST application." << std::endl;
 
@@ -111,12 +102,8 @@ int main(int argc, char *argv[]) {
 	// Loads them from the file params.json
 	Learn::LearningParameters params;
 	File::ParametersParser::loadParametersFromJson(ROOT_DIR "/params.json", params);
-    // change the nbGenerationPerAggregation parame
-    if ( argc >= 3){
-        params.maxNbOfConnections = (uint64_t) (std::atoi(argv[3]) - 1) ;
-        if (argc >= 4)
-            params.nbGenerationPerAggregation = (uint64_t) std::atoi(argv[3]);
-    }
+
+
 #ifdef NB_GENERATIONS
 	params.nbGenerations = NB_GENERATIONS;
 #endif // !NB_GENERATIONS
@@ -137,6 +124,14 @@ int main(int argc, char *argv[]) {
         laM.agents[i]->init(init_seed);
         rng.setSeed(init_seed);
         init_seed = rng.getUnsignedInt64(0, 20);
+    }
+
+    // change the nbGenerationPerAggregation parame
+    if ( argc >= 3){
+        params.maxNbOfConnections = (uint64_t) (laM.nbAgents - 1) ;
+        params.mutation.tpg.nbRoots = (size_t) (1000/laM.nbAgents);
+        if (argc >= 4)
+            params.nbGenerationPerAggregation = (uint64_t) std::atoi(argv[3]);
     }
     // laM.connectAgents(laM.agents[0],laM.agents[1]);
     // Instantiate and init the learning agent
@@ -222,8 +217,17 @@ int main(int argc, char *argv[]) {
 	// These may differ from imported parameters because of LE or machine specific
 	// settings such as thread count of number of actions.
 	File::ParametersParser::writeParametersToJson("exported_params.json", params);
+    // Export the src/instructions.cpp file and the params.json file to
+    // keep traceability when looking at the logs
+    char filename_src[BUFFER_SIZE];
+    char filename_dest[BUFFER_SIZE];
+    // Export the  params.json file to
+    // keep traceability when looking at the logs
+    sprintf(filename_src, "%s/exported_params.json", ROOT_DIR);
+    sprintf(filename_dest, "%s/params.json", saveFolderPath);
+    copyFile(filename_src, filename_dest);
 
-	// Train for NB_GENERATIONS generations
+    // Train for NB_GENERATIONS generations
     uint64_t aggregationNumber = 0;
     for (uint64_t i = 0; i < params.nbGenerations ; i++) {
 
